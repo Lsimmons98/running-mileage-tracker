@@ -1,18 +1,67 @@
 import React, { useState, useEffect } from "react"
 import AddRunForm from "./AddRunForm"
 
-const RunHistory = () => {
+const RunHistory = ({ currentRunner, updateRunner }) => {
   const [runs, setRuns] = useState([])
+  const [editingRunId, setEditingRunId] = useState(null)
+  const [currentMileage, setCurrentMileage] = useState("")
 
-  // useEffect(() => {
-  //   // Fetch the initial list of runs from the backend
-  //   fetch("/api/runs")
-  //     .then((response) => response.json())
-  //     .then((data) => setRuns(data))
-  // }, [])
+  useEffect(() => {
+    if (currentRunner) {
+      setRuns(currentRunner.runs)
+    }
+  }, [currentRunner])
 
   const addRun = (newRun) => {
-    setRuns([...runs, newRun])
+    const updatedRuns = [...runs, newRun]
+    setRuns(updatedRuns)
+    updateRunner({ ...currentRunner, runs: updatedRuns })
+  }
+
+  const deleteRun = (runId) => {
+    const updatedRuns = runs.filter((run) => run.id !== runId)
+
+    setRuns(updatedRuns)
+    updateRunner({ ...currentRunner, runs: updatedRuns })
+
+    fetch(`http://127.0.0.1:9292/runs/${runId}`, {
+      method: "DELETE",
+    }).catch((error) => {
+      console.error("Error deleting run:", error)
+    })
+  }
+
+  const handleEditClick = (run) => {
+    setEditingRunId(run.id)
+    setCurrentMileage(run.distance)
+  }
+
+  const handleMileageChange = (e) => {
+    setCurrentMileage(e.target.value)
+  }
+
+  const handleSaveClick = (runId) => {
+    const updatedRuns = runs.map((run) =>
+      run.id === runId
+        ? { ...run, distance: parseInt(currentMileage, 10) }
+        : run
+    )
+    setRuns(updatedRuns)
+    updateRunner({ ...currentRunner, runs: updatedRuns })
+
+    fetch(`http://127.0.0.1:9292/runs/${runId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ distance: parseInt(currentMileage, 10) }),
+    })
+      .then((response) => response.json())
+      .catch((error) => {
+        console.error("Error updating run:", error)
+      })
+
+    setEditingRunId(null)
   }
 
   return (
@@ -21,11 +70,27 @@ const RunHistory = () => {
       <ul>
         {runs.map((run) => (
           <li key={run.id}>
-            {run.distance} miles on {new Date(run.date).toLocaleDateString()}
+            {editingRunId === run.id ? (
+              <div>
+                <input
+                  type="number"
+                  value={currentMileage}
+                  onChange={handleMileageChange}
+                />
+                Miles
+                <button onClick={() => handleSaveClick(run.id)}>Save</button>
+              </div>
+            ) : (
+              <>
+                {run.distance} miles on {run.created_at}
+                <button onClick={() => handleEditClick(run)}>Edit</button>
+                <button onClick={() => deleteRun(run.id)}>Delete</button>
+              </>
+            )}
           </li>
         ))}
       </ul>
-      <AddRunForm addRun={addRun} />
+      <AddRunForm addRun={addRun} currentRunner={currentRunner} />
     </div>
   )
 }
